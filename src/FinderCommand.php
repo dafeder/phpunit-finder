@@ -22,6 +22,7 @@ class FinderCommand extends Command {
   protected function configure() {
     $this->addOption('config-file', 'c', InputOption::VALUE_OPTIONAL, "The phpunit.xml config file to use.", getcwd() . '/phpunit.xml');
     $this->addOption('bootstrap-file', 'b', InputOption::VALUE_OPTIONAL, "The tests bootstrap file.", getcwd() . '/tests/bootstrap.php');
+    $this->addOption('show', 's', InputOption::VALUE_OPTIONAL, "Show names or filesnames (default: filenames).", 'filenames');
     $this->addArgument('test-suite', InputArgument::IS_ARRAY, "The test suites to scan.");
   }
 
@@ -31,11 +32,25 @@ class FinderCommand extends Command {
   protected function execute(InputInterface $input, OutputInterface $output) {
     $configFile = $input->getOption('config-file');
     $bootstrap = $input->getOption('bootstrap-file');
+    $show = $input->getOption('show');
     include_once $bootstrap;
     $testSuites = $input->getArgument('test-suite');
-    $testFilenames = [];
+    $testNames = [];
 
     $config = (new Loader())->load($configFile);
+
+    switch ($show) {
+      case 'filenames':
+        $getterMethod = 'getFilename';
+        break;
+      
+      case 'names':
+        $getterMethod = 'getName';
+        break;
+      
+      default:
+        throw new \InvalidArgumentException('Unknown argument ' . $show);
+    }
 
     foreach ($config->testSuite() as $suite) {
       if ($testSuites && !in_array($suite->name(), $testSuites, TRUE)) {
@@ -44,14 +59,14 @@ class FinderCommand extends Command {
       $testSuite = (new TestSuiteMapper)->map($config->testSuite(), $suite->name());
       foreach (new \RecursiveIteratorIterator($testSuite) as $test) {
         if ($test instanceof TestCase) {
-          $testFilenames[] = ((new \ReflectionClass($test))->getFileName());
+          $testNames[] = ((new \ReflectionClass($test))->$getterMethod());
         }
       }
     }
 
-    $testFilenames = array_unique($testFilenames);
-    foreach ($testFilenames as $testFilename) {
-      $output->writeln($testFilename);
+    $testNames = array_unique($testNames);
+    foreach ($testNames as $testName) {
+      $output->writeln($testName);
     }
 
     return 0;
